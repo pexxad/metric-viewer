@@ -17,7 +17,7 @@ export function AddPanelButton() {
           clipRule="evenodd"
         />
       </svg>
-      Add Dataset
+      グラフ表示するデータを選択
     </button>
   );
 }

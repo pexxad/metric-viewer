@@ -36,10 +36,14 @@ export default function LoginPage() {
           metric-viewer
         </h1>
 
-        <label className="mb-1 block text-sm font-medium text-muted-foreground">
+        <label
+          htmlFor="login-email"
+          className="mb-1 block text-sm font-medium text-muted-foreground"
+        >
           Email
         </label>
         <input
+          id="login-email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -47,10 +51,14 @@ export default function LoginPage() {
           required
         />
 
-        <label className="mb-1 block text-sm font-medium text-muted-foreground">
+        <label
+          htmlFor="login-password"
+          className="mb-1 block text-sm font-medium text-muted-foreground"
+        >
           Password
         </label>
         <input
+          id="login-password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}

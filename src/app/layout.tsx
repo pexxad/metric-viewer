@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { Noto_Sans_JP } from "next/font/google";
-import { configureAmplify } from "@/lib/amplify/config";
 import "./globals.css";
-
-configureAmplify();
 
 const notoSansJP = Noto_Sans_JP({
   variable: "--font-noto-sans",
@@ -11,7 +8,10 @@ const notoSansJP = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
-  title: "metric-viewer",
+  title: {
+    default: "metric-viewer",
+    template: "%s | metric-viewer",
+  },
   description: "Time-series data visualization",
 };
 

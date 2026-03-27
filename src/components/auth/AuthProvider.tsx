@@ -5,6 +5,9 @@ import {
   getCurrentUser,
   signOut as amplifySignOut,
 } from "aws-amplify/auth";
+import { configureAmplify } from "@/lib/amplify/config";
+
+configureAmplify();
 
 export interface AuthUser {
   userId: string;
@@ -65,8 +68,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await amplifySignOut();
       setUser(null);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("Sign out failed:", err);
     }
   };
 

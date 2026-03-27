@@ -12,6 +12,9 @@ export interface Dataset {
   rows: DataRow[];
 }
 
+/** Which price scale the series is pinned to. */
+export type AxisSide = "left" | "right";
+
 /** A panel the user has added to the UI, referencing a dataset + chosen attribute. */
 export interface PanelEntry {
   panelId: string;
@@ -19,4 +22,5 @@ export interface PanelEntry {
   attribute: string;
   colorIndex: number;
   visible: boolean;
+  axis: AxisSide;
 }

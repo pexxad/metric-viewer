@@ -51,7 +51,7 @@ export function ChartContainer() {
       {!isEmpty && <ChartOverlay />}
       {isEmpty && (
         <div
-          className={`absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed transition-colors ${
+          className={`absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed transition-colors ${
             dragging
               ? "border-primary bg-primary/5"
               : "border-border bg-background"
@@ -62,6 +62,7 @@ export function ChartContainer() {
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
+            aria-hidden="true"
           >
             <path
               strokeLinecap="round"

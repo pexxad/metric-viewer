@@ -1,30 +1,50 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface ModalProps {
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  ariaLabel?: string;
 }
 
 const DURATION = 150;
 
-export function Modal({ open, onClose, children }: ModalProps) {
+export function Modal({ open, onClose, children, ariaLabel }: ModalProps) {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
       setMounted(true);
-      // 次フレームで visible にして CSS transition を発火
-      requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
+      // Allow the DOM to paint the initial state before triggering transition
+      const timer = setTimeout(() => setVisible(true), 0);
+      return () => clearTimeout(timer);
     } else {
       setVisible(false);
       const timer = setTimeout(() => setMounted(false), DURATION);
       return () => clearTimeout(timer);
     }
   }, [open]);
+
+  // Focus the dialog when opened
+  useEffect(() => {
+    if (visible && dialogRef.current) {
+      dialogRef.current.focus();
+    }
+  }, [visible]);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
 
   if (!mounted) return null;
 
@@ -36,9 +56,15 @@ export function Modal({ open, onClose, children }: ModalProps) {
       <div
         className="modal-backdrop absolute inset-0 bg-black/40"
         data-visible={visible}
+        aria-hidden="true"
       />
       <div
-        className="modal-content relative"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={ariaLabel}
+        tabIndex={-1}
+        className="modal-content relative outline-none"
         data-visible={visible}
         onClick={(e) => e.stopPropagation()}
       >

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { v4 as uuidv4 } from "uuid";
-import type { Dataset, PanelEntry } from "@/core/data/types";
+import type { AxisSide, Dataset, PanelEntry } from "@/core/data/types";
 
 interface DatasetState {
   datasets: Record<string, Dataset>;
@@ -12,6 +12,8 @@ interface DatasetState {
   addPanel: (datasetId: string, attribute: string) => void;
   removePanel: (panelId: string) => void;
   togglePanelVisibility: (panelId: string) => void;
+  setPanelAttribute: (panelId: string, attribute: string) => void;
+  setPanelAxis: (panelId: string, axis: AxisSide) => void;
 }
 
 export const useDatasetStore = create<DatasetState>((set) => ({
@@ -43,6 +45,7 @@ export const useDatasetStore = create<DatasetState>((set) => ({
           attribute,
           colorIndex: state.nextColorIndex,
           visible: true,
+          axis: "right",
         },
       ],
       nextColorIndex: state.nextColorIndex + 1,
@@ -57,6 +60,20 @@ export const useDatasetStore = create<DatasetState>((set) => ({
     set((state) => ({
       panels: state.panels.map((p) =>
         p.panelId === panelId ? { ...p, visible: !p.visible } : p,
+      ),
+    })),
+
+  setPanelAttribute: (panelId, attribute) =>
+    set((state) => ({
+      panels: state.panels.map((p) =>
+        p.panelId === panelId ? { ...p, attribute } : p,
+      ),
+    })),
+
+  setPanelAxis: (panelId, axis) =>
+    set((state) => ({
+      panels: state.panels.map((p) =>
+        p.panelId === panelId ? { ...p, axis } : p,
       ),
     })),
 }));

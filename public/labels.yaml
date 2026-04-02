@@ -1,0 +1,25 @@
+# カラム名ラベル辞書
+# CSVの英語カラム名をUIに表示する日本語名にマッピングします。
+#
+# labels: 英語カラム名 → 日本語表示名
+# exclude: 選択肢に表示しないカラム名のリスト
+#
+# 例:
+#   labels:
+#     temperature: 温度
+#     humidity: 湿度
+#   exclude:
+#     - internal_id
+#     - raw_flags
+
+labels:
+  price: 価格
+  volume: 出来高
+  spread: スプレッド
+  tide_level: 潮位(cm)
+  temperature: 気温(℃)
+
+exclude:
+  - internal_id
+  - raw_flags
+  - temperature

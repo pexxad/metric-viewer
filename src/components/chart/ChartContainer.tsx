@@ -3,12 +3,14 @@
 import { useCallback, useRef, useState } from "react";
 import { useChart } from "./useChart";
 import { ChartOverlay } from "./ChartOverlay";
+import { DragZoomOverlay } from "./DragZoomOverlay";
+import { ChartNavigator } from "./ChartNavigator";
 import { useDatasetStore } from "@/stores/datasetStore";
 import { useUiStore } from "@/stores/uiStore";
 
 export function ChartContainer() {
   const containerRef = useRef<HTMLDivElement>(null);
-  useChart(containerRef);
+  const { chartRef } = useChart(containerRef);
 
   const panels = useDatasetStore((s) => s.panels);
   const setCsvDialogOpen = useUiStore((s) => s.setCsvDialogOpen);
@@ -42,43 +44,50 @@ export function ChartContainer() {
 
   return (
     <div
-      className="relative flex-1"
+      className="flex flex-1 flex-col"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
     >
-      <div ref={containerRef} className="h-full w-full" />
-      {!isEmpty && <ChartOverlay />}
-      {isEmpty && (
-        <div
-          className={`absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed transition-colors ${
-            dragging
-              ? "border-primary bg-primary/5"
-              : "border-border bg-background"
-          }`}
-        >
-          <svg
-            className="h-12 w-12 text-muted"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
+      {/* Main chart area */}
+      <div className="relative flex-1">
+        <div ref={containerRef} className="h-full w-full" />
+        {!isEmpty && <ChartOverlay />}
+        <DragZoomOverlay containerRef={containerRef} chartRef={chartRef} />
+        {isEmpty && (
+          <div
+            className={`absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed transition-colors ${
+              dragging
+                ? "border-primary bg-primary/5"
+                : "border-border bg-background"
+            }`}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-            />
-          </svg>
-          <p className="text-sm text-muted">
-            CSVファイルをドラッグ&ドロップ
-          </p>
-          <p className="text-xs text-muted">
-            または左メニューの「グラフ表示するデータを選択」から追加
-          </p>
-        </div>
-      )}
+            <svg
+              className="h-12 w-12 text-muted"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              />
+            </svg>
+            <p className="text-sm text-muted">
+              CSVファイルをドラッグ&ドロップ
+            </p>
+            <p className="text-xs text-muted">
+              または左メニューの「グラフ表示するデータを選択」から追加
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Mini chart navigator */}
+      <ChartNavigator mainChartRef={chartRef} />
     </div>
   );
 }

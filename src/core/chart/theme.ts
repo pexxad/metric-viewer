@@ -23,6 +23,17 @@ export const CHART_THEME: DeepPartial<ChartOptions> = {
   timeScale: {
     borderColor: "#e0e0e0",
     timeVisible: true,
+    tickMarkFormatter: (time: number, tickMarkType: number) => {
+      const d = new Date(time * 1000);
+      const md = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+      // tickMarkType: 0=Year, 1=Month, 2=DayOfMonth, 3=Time, 4=TimeWithSeconds
+      if (tickMarkType >= 3) {
+        const hh = String(d.getUTCHours()).padStart(2, "0");
+        const mm = String(d.getUTCMinutes()).padStart(2, "0");
+        return `${md} ${hh}:${mm}`;
+      }
+      return md;
+    },
   },
 } as const;
 

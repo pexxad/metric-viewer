@@ -3,6 +3,7 @@
 import type { PanelEntry } from "@/core/data/types";
 import { getColor } from "@/core/chart/colors";
 import { useDatasetStore } from "@/stores/datasetStore";
+import { useLabelStore } from "@/stores/labelStore";
 
 export function DatasetPanel({ panel }: { panel: PanelEntry }) {
   const dataset = useDatasetStore((s) => s.datasets[panel.datasetId]);
@@ -10,6 +11,8 @@ export function DatasetPanel({ panel }: { panel: PanelEntry }) {
   const toggleVisibility = useDatasetStore((s) => s.togglePanelVisibility);
   const setPanelAttribute = useDatasetStore((s) => s.setPanelAttribute);
   const setPanelAxis = useDatasetStore((s) => s.setPanelAxis);
+  const resolveLabel = useLabelStore((s) => s.resolve);
+  const filterAttributes = useLabelStore((s) => s.filterAttributes);
   const color = getColor(panel.colorIndex);
 
   if (!dataset) return null;
@@ -62,9 +65,9 @@ export function DatasetPanel({ panel }: { panel: PanelEntry }) {
           onChange={(e) => setPanelAttribute(panel.panelId, e.target.value)}
           className="min-w-0 flex-1 truncate rounded border border-border bg-background px-1.5 py-0.5 text-xs text-foreground"
         >
-          {dataset.attributes.map((attr) => (
+          {filterAttributes(dataset.attributes).map((attr) => (
             <option key={attr} value={attr}>
-              {attr}
+              {resolveLabel(attr)}
             </option>
           ))}
         </select>

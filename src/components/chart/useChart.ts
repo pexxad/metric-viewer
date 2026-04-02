@@ -10,6 +10,7 @@ import type {
 } from "lightweight-charts";
 import { useDatasetStore } from "@/stores/datasetStore";
 import { useUiStore } from "@/stores/uiStore";
+import { useLabelStore } from "@/stores/labelStore";
 import { getColor } from "@/core/chart/colors";
 import { toLineData } from "@/core/chart/seriesFactory";
 import { CHART_THEME, SERIES_DEFAULTS } from "@/core/chart/theme";
@@ -23,6 +24,7 @@ export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
   const panels = useDatasetStore((s) => s.panels);
   const datasets = useDatasetStore((s) => s.datasets);
   const setTooltipData = useUiStore((s) => s.setTooltipData);
+  const resolveLabel = useLabelStore((s) => s.resolve);
 
   // Dynamically load lightweight-charts and create chart
   useEffect(() => {
@@ -133,9 +135,10 @@ export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
         const data = param.seriesData.get(series);
         if (data && "value" in data && typeof data.value === "number") {
           const ds = datasets[panel.datasetId];
+          const attrLabel = resolveLabel(panel.attribute);
           const label = ds
-            ? `${ds.name || ds.id} / ${panel.attribute}`
-            : panel.attribute;
+            ? `${ds.name || ds.id} / ${attrLabel}`
+            : attrLabel;
           values.push({
             color: getColor(panel.colorIndex),
             label,
@@ -160,7 +163,7 @@ export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
     return () => {
       chart.unsubscribeCrosshairMove(handler);
     };
-  }, [panels, datasets, setTooltipData]);
+  }, [panels, datasets, setTooltipData, resolveLabel]);
 
   const fitContent = useCallback(() => {
     chartRef.current?.timeScale().fitContent();

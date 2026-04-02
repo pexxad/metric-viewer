@@ -5,6 +5,7 @@ import { parseCsv } from "@/core/data/csvParser";
 import { readCsvFile } from "@/core/data/readCsvFile";
 import { useDatasetStore } from "@/stores/datasetStore";
 import { useUiStore } from "@/stores/uiStore";
+import { useLabelStore } from "@/stores/labelStore";
 import { Modal } from "@/components/ui/Modal";
 
 type Tab = "csv" | "api";
@@ -54,6 +55,8 @@ export function CsvImportDialog() {
   const setDroppedFile = useUiStore((s) => s.setDroppedFile);
   const addDataset = useDatasetStore((s) => s.addDataset);
   const addPanel = useDatasetStore((s) => s.addPanel);
+  const resolveLabel = useLabelStore((s) => s.resolve);
+  const filterAttributes = useLabelStore((s) => s.filterAttributes);
 
   const [tab, setTab] = useState<Tab>("csv");
   const [error, setError] = useState<string | null>(null);
@@ -101,13 +104,14 @@ export function CsvImportDialog() {
 
       const ds = parseCsv(text, "preview");
       setCsvAttributes(ds.attributes);
-      if (ds.attributes.length > 0) {
-        setCsvSelectedAttr(ds.attributes[0]);
+      const visible = filterAttributes(ds.attributes);
+      if (visible.length > 0) {
+        setCsvSelectedAttr(visible[0]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "CSV解析に失敗しました");
     }
-  }, []);
+  }, [filterAttributes]);
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -246,9 +250,9 @@ export function CsvImportDialog() {
               {csvAttributes.length === 0 ? (
                 <option value="">先にCSVファイルを選択してください</option>
               ) : (
-                csvAttributes.map((attr) => (
+                filterAttributes(csvAttributes).map((attr) => (
                   <option key={attr} value={attr}>
-                    {attr}
+                    {resolveLabel(attr)}
                   </option>
                 ))
               )}
@@ -282,9 +286,9 @@ export function CsvImportDialog() {
               onChange={(e) => setApiAttr(e.target.value)}
               className="mb-3 w-full rounded border border-border bg-background px-2 py-1 text-sm text-foreground"
             >
-              {MOCK_API_ATTRIBUTES.map((attr) => (
+              {filterAttributes(MOCK_API_ATTRIBUTES).map((attr) => (
                 <option key={attr} value={attr}>
-                  {attr}
+                  {resolveLabel(attr)}
                 </option>
               ))}
             </select>

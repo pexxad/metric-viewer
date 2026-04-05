@@ -1,56 +1,42 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import { useChart } from "./useChart";
 import { ChartOverlay } from "./ChartOverlay";
 import { DragZoomOverlay } from "./DragZoomOverlay";
 import { ChartNavigator } from "./ChartNavigator";
 import { useDatasetStore } from "@/stores/datasetStore";
 import { useUiStore } from "@/stores/uiStore";
+import { useCsvDropZone } from "@/hooks/useCsvDropZone";
 
 export function ChartContainer() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { chartRef } = useChart(containerRef);
+  const { chartRef, chartReady } = useChart(containerRef);
 
   const panels = useDatasetStore((s) => s.panels);
   const setCsvDialogOpen = useUiStore((s) => s.setCsvDialogOpen);
   const setDroppedFile = useUiStore((s) => s.setDroppedFile);
-  const [dragging, setDragging] = useState(false);
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setDragging(false);
-      const file = e.dataTransfer.files[0];
-      if (file && file.name.endsWith(".csv")) {
-        setDroppedFile(file);
-        setCsvDialogOpen(true);
-      }
+  const onCsvFile = useCallback(
+    (file: File) => {
+      setDroppedFile(file);
+      setCsvDialogOpen(true);
     },
     [setDroppedFile, setCsvDialogOpen],
   );
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-  }, []);
+  const { dragging, handlers } = useCsvDropZone(onCsvFile);
 
   const isEmpty = panels.length === 0;
 
   return (
     <div
       className="flex flex-1 flex-col"
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
+      onDrop={handlers.onDrop}
+      onDragOver={handlers.onDragOver}
+      onDragLeave={handlers.onDragLeave}
     >
       {/* Main chart area */}
-      <div className="relative flex-1">
+      <div className="relative flex-1 overflow-hidden">
         <div ref={containerRef} className="h-full w-full" />
         {!isEmpty && <ChartOverlay />}
         <DragZoomOverlay containerRef={containerRef} chartRef={chartRef} />
@@ -86,8 +72,8 @@ export function ChartContainer() {
         )}
       </div>
 
-      {/* Mini chart navigator */}
-      <ChartNavigator mainChartRef={chartRef} />
+      {/* Mini chart navigator: panels が存在するときだけマウントし、初回mount時にcontainerRefが確実にセットされるようにする */}
+      {!isEmpty && <ChartNavigator mainChartRef={chartRef} mainChartReady={chartReady} />}
     </div>
   );
 }

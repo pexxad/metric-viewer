@@ -1,30 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
-import type {
-  IChartApi,
-  ISeriesApi,
-  SeriesType,
-  MouseEventParams,
-  Time,
-} from "lightweight-charts";
+import { useEffect, useRef, useCallback, useState } from "react";
+import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 import { useDatasetStore } from "@/stores/datasetStore";
-import { useUiStore } from "@/stores/uiStore";
-import { useLabelStore } from "@/stores/labelStore";
-import { getColor } from "@/core/chart/colors";
-import { toLineData } from "@/core/chart/seriesFactory";
 import { CHART_THEME, SERIES_DEFAULTS } from "@/core/chart/theme";
+import { syncSeries } from "@/core/chart/syncSeries";
+import { useChartTooltip } from "@/hooks/useChartTooltip";
 
 export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
   const chartRef = useRef<IChartApi | null>(null);
   const seriesMapRef = useRef<Map<string, ISeriesApi<SeriesType>>>(new Map());
   const lcModuleRef = useRef<typeof import("lightweight-charts") | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const [chartReady, setChartReady] = useState(false);
 
   const panels = useDatasetStore((s) => s.panels);
   const datasets = useDatasetStore((s) => s.datasets);
-  const setTooltipData = useUiStore((s) => s.setTooltipData);
-  const resolveLabel = useLabelStore((s) => s.resolve);
 
   // Dynamically load lightweight-charts and create chart
   useEffect(() => {
@@ -50,6 +41,8 @@ export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
       });
       ro.observe(container);
       resizeObserverRef.current = ro;
+
+      setChartReady(true);
     });
 
     return () => {
@@ -60,6 +53,7 @@ export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
       chartRef.current = null;
       lcModuleRef.current = null;
       seriesMapRef.current.clear();
+      setChartReady(false);
     };
   }, [containerRef]);
 
@@ -69,105 +63,20 @@ export function useChart(containerRef: React.RefObject<HTMLDivElement | null>) {
     const lc = lcModuleRef.current;
     if (!chart || !lc) return;
 
-    const currentPanelIds = new Set(panels.map((p) => p.panelId));
-    const existingPanelIds = new Set(seriesMapRef.current.keys());
-
-    // Remove series for panels that no longer exist
-    for (const panelId of existingPanelIds) {
-      if (!currentPanelIds.has(panelId)) {
-        const series = seriesMapRef.current.get(panelId);
-        if (series) {
-          chart.removeSeries(series);
-          seriesMapRef.current.delete(panelId);
-        }
-      }
-    }
-
-    // Add / update series for current panels
-    for (const panel of panels) {
-      const dataset = datasets[panel.datasetId];
-      if (!dataset) continue;
-
-      const color = getColor(panel.colorIndex);
-      let series = seriesMapRef.current.get(panel.panelId);
-
-      const priceScaleId = panel.axis === "left" ? "left" : "right";
-
-      if (!series) {
-        series = chart.addSeries(lc.LineSeries, {
-          color,
-          ...SERIES_DEFAULTS,
-          visible: panel.visible,
-          priceScaleId,
-        });
-        seriesMapRef.current.set(panel.panelId, series);
-      } else {
-        series.applyOptions({
-          color,
-          visible: panel.visible,
-          priceScaleId,
-        });
-      }
-
-      const data = toLineData(dataset, panel.attribute);
-      series.setData(data as Parameters<typeof series.setData>[0]);
-    }
+    syncSeries(chart, lc, seriesMapRef.current, panels, datasets, {
+      seriesDefaults: SERIES_DEFAULTS,
+      usePriceScale: true,
+    });
 
     chart.timeScale().fitContent();
   }, [panels, datasets]);
 
   // Crosshair tooltip
-  useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart) return;
-
-    const handler = (param: MouseEventParams<Time>) => {
-      if (!param.time || !param.seriesData?.size || !param.point) {
-        setTooltipData(null);
-        return;
-      }
-
-      const values: { color: string; label: string; value: number }[] = [];
-      for (const panel of panels) {
-        if (!panel.visible) continue;
-        const series = seriesMapRef.current.get(panel.panelId);
-        if (!series) continue;
-        const data = param.seriesData.get(series);
-        if (data && "value" in data && typeof data.value === "number") {
-          const ds = datasets[panel.datasetId];
-          const attrLabel = resolveLabel(panel.attribute);
-          const label = ds
-            ? `${ds.name || ds.id} / ${attrLabel}`
-            : attrLabel;
-          values.push({
-            color: getColor(panel.colorIndex),
-            label,
-            value: data.value,
-          });
-        }
-      }
-
-      if (values.length > 0) {
-        setTooltipData({
-          time: param.time as number,
-          values,
-          x: param.point.x,
-          y: param.point.y,
-        });
-      } else {
-        setTooltipData(null);
-      }
-    };
-
-    chart.subscribeCrosshairMove(handler);
-    return () => {
-      chart.unsubscribeCrosshairMove(handler);
-    };
-  }, [panels, datasets, setTooltipData, resolveLabel]);
+  useChartTooltip(chartRef, seriesMapRef);
 
   const fitContent = useCallback(() => {
     chartRef.current?.timeScale().fitContent();
   }, []);
 
-  return { chartRef, fitContent };
+  return { chartRef, chartReady, fitContent };
 }

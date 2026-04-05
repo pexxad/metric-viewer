@@ -1,24 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type {
-  IChartApi,
-  ISeriesApi,
-  SeriesType,
-  LogicalRange,
-} from "lightweight-charts";
+import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 import { useDatasetStore } from "@/stores/datasetStore";
-import { getColor } from "@/core/chart/colors";
-import { toLineData } from "@/core/chart/seriesFactory";
+import { syncSeries } from "@/core/chart/syncSeries";
+import { useNavigatorDrag } from "@/hooks/useNavigatorDrag";
 
 const NAV_HEIGHT = 60;
 const HANDLE_WIDTH = 6;
 
+const NAV_SERIES_DEFAULTS = {
+  lineWidth: 1 as const,
+  crosshairMarkerVisible: false,
+  pointMarkersVisible: false,
+  priceLineVisible: false,
+  lastValueVisible: false,
+};
+
 interface Props {
   mainChartRef: React.RefObject<IChartApi | null>;
+  mainChartReady: boolean;
 }
 
-export function ChartNavigator({ mainChartRef }: Props) {
+export function ChartNavigator({ mainChartRef, mainChartReady }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const navChartRef = useRef<IChartApi | null>(null);
   const seriesMapRef = useRef<Map<string, ISeriesApi<SeriesType>>>(new Map());
@@ -29,8 +33,10 @@ export function ChartNavigator({ mainChartRef }: Props) {
   const datasets = useDatasetStore((s) => s.datasets);
 
   const [highlight, setHighlight] = useState<{ left: number; width: number } | null>(null);
-  // Signal that the nav chart is ready for series sync
   const [navReady, setNavReady] = useState(false);
+
+  const { handlePointerDown, handlePointerMove, handlePointerUp, handleBackgroundClick } =
+    useNavigatorDrag(mainChartRef, navChartRef, containerRef);
 
   // --- Create the mini chart ---
   useEffect(() => {
@@ -90,53 +96,36 @@ export function ChartNavigator({ mainChartRef }: Props) {
     };
   }, []);
 
-  // --- Sync series with panels (runs once nav chart is ready) ---
+  // --- Sync series with panels ---
   useEffect(() => {
     if (!navReady) return;
     const chart = navChartRef.current;
     const lc = lcModuleRef.current;
     if (!chart || !lc) return;
 
-    const currentIds = new Set(panels.map((p) => p.panelId));
-    const existingIds = new Set(seriesMapRef.current.keys());
+    syncSeries(chart, lc, seriesMapRef.current, panels, datasets, {
+      seriesDefaults: NAV_SERIES_DEFAULTS,
+    });
 
-    for (const id of existingIds) {
-      if (!currentIds.has(id)) {
-        const s = seriesMapRef.current.get(id);
-        if (s) {
-          chart.removeSeries(s);
-          seriesMapRef.current.delete(id);
-        }
-      }
-    }
-
+    // 全データのmin/maxタイムスタンプを求め、余白なく全体を表示する
+    let minTime = Infinity;
+    let maxTime = -Infinity;
     for (const panel of panels) {
       const dataset = datasets[panel.datasetId];
       if (!dataset) continue;
-
-      const color = getColor(panel.colorIndex);
-      let series = seriesMapRef.current.get(panel.panelId);
-
-      if (!series) {
-        series = chart.addSeries(lc.LineSeries, {
-          color,
-          lineWidth: 1,
-          crosshairMarkerVisible: false,
-          pointMarkersVisible: false,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          visible: panel.visible,
-        });
-        seriesMapRef.current.set(panel.panelId, series);
-      } else {
-        series.applyOptions({ color, visible: panel.visible });
+      for (const row of dataset.rows) {
+        if (row.time < minTime) minTime = row.time;
+        if (row.time > maxTime) maxTime = row.time;
       }
-
-      const data = toLineData(dataset, panel.attribute);
-      series.setData(data as Parameters<typeof series.setData>[0]);
     }
-
-    chart.timeScale().fitContent();
+    if (minTime !== Infinity && maxTime !== -Infinity) {
+      chart.timeScale().setVisibleRange({
+        from: minTime as import("lightweight-charts").Time,
+        to: maxTime as import("lightweight-charts").Time,
+      });
+    } else {
+      chart.timeScale().fitContent();
+    }
   }, [navReady, panels, datasets]);
 
   // --- Sync highlight with main chart's visible range ---
@@ -166,133 +155,20 @@ export function ChartNavigator({ mainChartRef }: Props) {
     });
   }, [mainChartRef]);
 
-  // Poll for main chart readiness, then subscribe
+  // Subscribe to main chart's visible range changes
   useEffect(() => {
-    if (!navReady) return;
+    if (!navReady || !mainChartReady) return;
+    const mainChart = mainChartRef.current;
+    if (!mainChart) return;
 
-    let subscribed = false;
-    let timer: ReturnType<typeof setInterval>;
     const handler = () => updateHighlight();
-
-    const trySubscribe = () => {
-      const mainChart = mainChartRef.current;
-      if (!mainChart) return;
-      // Main chart is ready — subscribe and stop polling
-      clearInterval(timer);
-      subscribed = true;
-      mainChart.timeScale().subscribeVisibleLogicalRangeChange(handler);
-      updateHighlight();
-    };
-
-    // Try immediately, then poll every 200ms until main chart is available
-    trySubscribe();
-    if (!subscribed) {
-      timer = setInterval(trySubscribe, 200);
-    }
+    mainChart.timeScale().subscribeVisibleLogicalRangeChange(handler);
+    updateHighlight();
 
     return () => {
-      clearInterval(timer);
-      const mainChart = mainChartRef.current;
-      if (subscribed && mainChart) {
-        mainChart.timeScale().unsubscribeVisibleLogicalRangeChange(handler);
-      }
+      mainChart.timeScale().unsubscribeVisibleLogicalRangeChange(handler);
     };
-  }, [navReady, mainChartRef, updateHighlight, panels]);
-
-  // --- Drag interactions on the highlight ---
-  const dragState = useRef<{
-    mode: "move" | "resize-left" | "resize-right";
-    originX: number;
-    originRange: LogicalRange;
-  } | null>(null);
-
-  const getLogicalRange = useCallback((): LogicalRange | null => {
-    return mainChartRef.current?.timeScale().getVisibleLogicalRange() ?? null;
-  }, [mainChartRef]);
-
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent, mode: "move" | "resize-left" | "resize-right") => {
-      e.preventDefault();
-      e.stopPropagation();
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
-      const range = getLogicalRange();
-      if (!range) return;
-      dragState.current = { mode, originX: e.clientX, originRange: range };
-    },
-    [getLogicalRange],
-  );
-
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      const ds = dragState.current;
-      const navChart = navChartRef.current;
-      const mainChart = mainChartRef.current;
-      if (!ds || !navChart || !mainChart) return;
-
-      const deltaPx = e.clientX - ds.originX;
-      const navTs = navChart.timeScale();
-      const mainTs = mainChart.timeScale();
-
-      const refPx = navTs.logicalToCoordinate(ds.originRange.from);
-      if (refPx === null) return;
-      const targetLogical = navTs.coordinateToLogical(refPx + deltaPx);
-      if (targetLogical === null) return;
-      const logicalDelta = targetLogical - ds.originRange.from;
-
-      if (ds.mode === "move") {
-        mainTs.setVisibleLogicalRange({
-          from: ds.originRange.from + logicalDelta,
-          to: ds.originRange.to + logicalDelta,
-        });
-      } else if (ds.mode === "resize-left") {
-        const newFrom = ds.originRange.from + logicalDelta;
-        if (newFrom < ds.originRange.to - 1) {
-          mainTs.setVisibleLogicalRange({ from: newFrom, to: ds.originRange.to });
-        }
-      } else {
-        const refPxR = navTs.logicalToCoordinate(ds.originRange.to);
-        if (refPxR === null) return;
-        const targetR = navTs.coordinateToLogical(refPxR + deltaPx);
-        if (targetR === null) return;
-        const deltaR = targetR - ds.originRange.to;
-        const newTo = ds.originRange.to + deltaR;
-        if (newTo > ds.originRange.from + 1) {
-          mainTs.setVisibleLogicalRange({ from: ds.originRange.from, to: newTo });
-        }
-      }
-    },
-    [mainChartRef],
-  );
-
-  const handlePointerUp = useCallback(() => {
-    dragState.current = null;
-  }, []);
-
-  const handleBackgroundClick = useCallback(
-    (e: React.MouseEvent) => {
-      const navChart = navChartRef.current;
-      const mainChart = mainChartRef.current;
-      if (!navChart || !mainChart) return;
-
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
-      const x = e.clientX - rect.left;
-      const clickedLogical = navChart.timeScale().coordinateToLogical(x);
-      const range = mainChart.timeScale().getVisibleLogicalRange();
-      if (clickedLogical === null || !range) return;
-
-      const span = range.to - range.from;
-      mainChart.timeScale().setVisibleLogicalRange({
-        from: clickedLogical - span / 2,
-        to: clickedLogical + span / 2,
-      });
-    },
-    [mainChartRef],
-  );
-
-  const hasPanels = panels.length > 0;
-  if (!hasPanels) return null;
+  }, [navReady, mainChartReady, mainChartRef, updateHighlight, panels]);
 
   return (
     <div

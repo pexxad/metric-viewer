@@ -2,51 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { parseCsv } from "@/core/data/csvParser";
-import { readCsvFile } from "@/core/data/readCsvFile";
+import type { Dataset } from "@/core/data/types";
+import { MOCK_API_IDS, MOCK_API_ATTRIBUTES, generateMockData } from "@/core/data/mockApi";
 import { useDatasetStore } from "@/stores/datasetStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useLabelStore } from "@/stores/labelStore";
 import { Modal } from "@/components/ui/Modal";
 
 type Tab = "csv" | "api";
-
-/* ------------------------------------------------------------------ */
-/*  Mock API data                                                      */
-/* ------------------------------------------------------------------ */
-const MOCK_API_IDS = [
-  { id: "USDJPY", name: "米ドル/円" },
-  { id: "EURJPY", name: "ユーロ/円" },
-  { id: "GBPJPY", name: "英ポンド/円" },
-];
-
-const MOCK_API_ATTRIBUTES = ["price", "volume", "spread"];
-
-function generateMockData(dataId: string, attribute: string) {
-  const rows = [];
-  const base = dataId === "USDJPY" ? 150 : dataId === "EURJPY" ? 160 : 190;
-  const now = Math.floor(Date.now() / 1000);
-  const daySeconds = 86400;
-  for (let i = 60; i >= 0; i--) {
-    const time = now - i * daySeconds;
-    const value =
-      attribute === "volume"
-        ? Math.round(1000 + Math.random() * 5000)
-        : attribute === "spread"
-          ? +(0.1 + Math.random() * 0.5).toFixed(2)
-          : +(base + (Math.random() - 0.5) * 10).toFixed(2);
-    rows.push({ time, [attribute]: value });
-  }
-  return {
-    id: dataId,
-    name: MOCK_API_IDS.find((m) => m.id === dataId)?.name,
-    attributes: MOCK_API_ATTRIBUTES,
-    rows,
-  };
-}
-
-/* ------------------------------------------------------------------ */
-/*  Component                                                          */
-/* ------------------------------------------------------------------ */
 
 export function CsvImportDialog() {
   const open = useUiStore((s) => s.csvDialogOpen);
@@ -98,8 +61,8 @@ export function CsvImportDialog() {
   const loadFile = useCallback(async (file: File) => {
     setError(null);
     try {
-      const { text, fileName: name } = await readCsvFile(file);
-      setFileName(name);
+      const text = await file.text();
+      setFileName(file.name);
       csvTextRef.current = text;
 
       const ds = parseCsv(text, "preview");
@@ -146,27 +109,30 @@ export function CsvImportDialog() {
     setDragging(false);
   }, []);
 
+  const submitDataset = useCallback(
+    (ds: Dataset, attribute: string) => {
+      addDataset(ds);
+      addPanel(ds.id, attribute);
+      reset();
+      setCsvDialogOpen(false);
+    },
+    [addDataset, addPanel, reset, setCsvDialogOpen],
+  );
+
   const handleCsvSubmit = useCallback(() => {
     if (!csvTextRef.current || !csvSelectedAttr || !fileName) return;
     try {
       const dataId = fileName.replace(/\.csv$/i, "");
       const ds = parseCsv(csvTextRef.current, dataId);
-      addDataset(ds);
-      addPanel(ds.id, csvSelectedAttr);
-      reset();
-      setCsvDialogOpen(false);
+      submitDataset(ds, csvSelectedAttr);
     } catch (err) {
       setError(err instanceof Error ? err.message : "CSV解析に失敗しました");
     }
-  }, [fileName, csvSelectedAttr, addDataset, addPanel, reset, setCsvDialogOpen]);
+  }, [fileName, csvSelectedAttr, submitDataset]);
 
   const handleApiSubmit = useCallback(() => {
-    const ds = generateMockData(apiDataId, apiAttr);
-    addDataset(ds);
-    addPanel(ds.id, apiAttr);
-    reset();
-    setCsvDialogOpen(false);
-  }, [apiDataId, apiAttr, addDataset, addPanel, reset, setCsvDialogOpen]);
+    submitDataset(generateMockData(apiDataId, apiAttr), apiAttr);
+  }, [apiDataId, apiAttr, submitDataset]);
 
   const handleClose = useCallback(() => {
     reset();

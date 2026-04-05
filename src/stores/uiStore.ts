@@ -14,24 +14,20 @@ export interface TooltipData {
 }
 
 interface UiState {
-  sidebarOpen: boolean;
   csvDialogOpen: boolean;
   tooltipData: TooltipData | null;
   droppedFile: File | null;
 
-  setSidebarOpen: (open: boolean) => void;
   setCsvDialogOpen: (open: boolean) => void;
   setTooltipData: (data: TooltipData | null) => void;
   setDroppedFile: (file: File | null) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  sidebarOpen: true,
   csvDialogOpen: false,
   tooltipData: null,
   droppedFile: null,
 
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setCsvDialogOpen: (open) => set({ csvDialogOpen: open }),
   setTooltipData: (data) => set({ tooltipData: data }),
   setDroppedFile: (file) => set({ droppedFile: file }),

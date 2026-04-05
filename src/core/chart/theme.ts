@@ -23,6 +23,9 @@ export const CHART_THEME: DeepPartial<ChartOptions> = {
   timeScale: {
     borderColor: "#e0e0e0",
     timeVisible: true,
+    minBarSpacing: 0.001,
+    fixLeftEdge: true,
+    fixRightEdge: true,
     tickMarkFormatter: (time: number, tickMarkType: number) => {
       const d = new Date(time * 1000);
       const md = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;

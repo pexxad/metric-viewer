@@ -61,7 +61,7 @@ export function ChartNavigator({ mainChartRef, mainChartReady }: Props) {
         },
         leftPriceScale: { visible: false },
         rightPriceScale: { visible: false },
-        timeScale: { visible: false },
+        timeScale: { visible: false, minBarSpacing: 0.001 },
         crosshair: {
           mode: 0,
           vertLine: { visible: false },
